@@ -51,6 +51,12 @@ Required columns: `document,period,metric,value,unit,source_ref`.
 
 The document field may be blank; the uploaded filename is then used. Metric, period, unit and source reference are required. A blank value is retained as an incomplete observation for review.
 
+## Engineering controls
+
+- GitHub Actions runs the unit suite and Python compilation checks on pushes and pull requests.
+- Every finding receives a stable metric-period reference and exposes a numeric spread only when the supplied observations are comparable.
+- See [the security policy](SECURITY.md), [contribution guide](CONTRIBUTING.md) and [production-readiness gate](commercial/production-readiness.md).
+
 ## Tests
 
 ```bash
