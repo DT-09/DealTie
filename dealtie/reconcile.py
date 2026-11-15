@@ -1,7 +1,10 @@
 """Deterministic, analyst-confirmed financial observation comparison."""
 from collections import defaultdict
 from decimal import Decimal, InvalidOperation
+import hashlib
+import json
 import re
+import unicodedata
 
 
 _NUMBER = re.compile(r"^[+-]?(?:(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d*)?|\.\d+)$")
@@ -15,6 +18,11 @@ _REVIEW_PRIORITY = {
     "INSUFFICIENT_COVERAGE": (3, "Complete source coverage"),
     "TIED": (4, "No exception"),
 }
+
+
+def _label(value):
+    """Normalize labels consistently without changing their financial meaning."""
+    return " ".join(unicodedata.normalize("NFKC", str(value or "")).split())
 
 
 def _num(value):
@@ -53,6 +61,12 @@ def _num(value):
     return number if number.is_finite() else None
 
 
+def _finding_id(metric, period):
+    """Stable, non-sensitive identifier for a metric-period comparison group."""
+    key = json.dumps([metric.casefold(), period.casefold()], ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
+
+
 def reconcile(observations, tolerance=Decimal("0.01")):
     """Compare analyst-confirmed observations without implicit conversions.
 
@@ -70,17 +84,17 @@ def reconcile(observations, tolerance=Decimal("0.01")):
     groups = defaultdict(list)
     for source in observations:
         row = dict(source)
-        metric = " ".join(str(row.get("metric", "")).split())
-        period = " ".join(str(row.get("period", "")).split())
-        document = " ".join(str(row.get("document", "")).split())
+        metric = _label(row.get("metric"))
+        period = _label(row.get("period"))
+        document = _label(row.get("document"))
         if not (metric and period and document):
             continue
         row.update({
             "metric": metric,
             "period": period,
             "document": document,
-            "unit": " ".join(str(row.get("unit", "")).split()),
-            "source_ref": " ".join(str(row.get("source_ref", "")).split()),
+            "unit": _label(row.get("unit")),
+            "source_ref": _label(row.get("source_ref")),
         })
         groups[(metric.casefold(), period.casefold())].append(row)
 
@@ -120,7 +134,10 @@ def reconcile(observations, tolerance=Decimal("0.01")):
             explanation = f"All supplied values agree within the configured tolerance ({tolerance})."
 
         priority, priority_label = _REVIEW_PRIORITY[status]
+        comparable = status in {"VALUE_MISMATCH", "TIED"}
+        spread = str(max(numeric_values) - min(numeric_values)) if comparable else None
         findings.append({
+            "finding_id": _finding_id(rows[0]["metric"], rows[0]["period"]),
             "metric": rows[0]["metric"],
             "period": rows[0]["period"],
             "status": status,
@@ -130,8 +147,10 @@ def reconcile(observations, tolerance=Decimal("0.01")):
             "source_count": len(documents),
             "observation_count": len(rows),
             "tolerance": str(tolerance),
+            "observed_spread": spread,
             "observations": rows,
         })
+
     # Actionable comparison/evidence exceptions precede incomplete coverage
     # and tied metrics. Stable secondary keys keep repeated runs deterministic.
     findings.sort(key=lambda item: (
