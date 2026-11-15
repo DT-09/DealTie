@@ -134,6 +134,34 @@ class ReconcileTests(unittest.TestCase):
         ])
         self.assertEqual(len(result), 2)
 
+    def test_finding_id_is_stable_across_label_case_and_whitespace(self):
+        first = reconcile([
+            self.row("CIM", "100", metric="Revenue", period="FY2025"),
+            self.row("QoE", "100", metric="Revenue", period="FY2025"),
+        ])[0]
+        second = reconcile([
+            self.row("CIM", "100", metric=" revenue ", period=" FY2025 "),
+            self.row("QoE", "100", metric="REVENUE", period="FY2025"),
+        ])[0]
+        self.assertEqual(first["finding_id"], second["finding_id"])
+        self.assertEqual(len(first["finding_id"]), 16)
+
+    def test_observed_spread_is_explicit_for_comparable_groups(self):
+        result = reconcile([
+            self.row("CIM", "100.25"),
+            self.row("QoE", "98.75"),
+        ])[0]
+        self.assertEqual(result["status"], "VALUE_MISMATCH")
+        self.assertEqual(result["observed_spread"], "1.50")
+
+    def test_observed_spread_is_not_calculated_across_units(self):
+        result = reconcile([
+            self.row("CIM", "100", unit="USD m"),
+            self.row("Model", "100", unit="EUR m"),
+        ])[0]
+        self.assertEqual(result["status"], "UNIT_MISMATCH")
+        self.assertIsNone(result["observed_spread"])
+
 
 if __name__ == "__main__":
     unittest.main()
