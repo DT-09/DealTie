@@ -234,13 +234,15 @@ if st.session_state.results is not None:
     metric_cols[3].metric("Tied", int(counts.get("TIED", 0)))
     if results:
         st.dataframe(pd.DataFrame([{
+            "Finding ID":r["finding_id"],
             "Review priority":f"P{r['review_priority']} · {r['review_priority_label']}",
             "Metric":r["metric"], "Period":r["period"], "Status":r["status"],
+            "Observed spread":r.get("observed_spread"),
             "Sources":r["source_count"], "Observations":r["observation_count"],
             "Explanation":r["explanation"]
         } for r in results]), use_container_width=True, hide_index=True)
         for finding in results:
-            with st.expander(f"{finding['status']} · {finding['metric']} · {finding['period']}"):
+            with st.expander(f"{finding['status']} · {finding['metric']} · {finding['period']} · {finding['finding_id']}"):
                 st.write(finding["explanation"])
                 st.dataframe(pd.DataFrame([{
                     "Document":o["document"], "Value":o.get("value"),
@@ -270,8 +272,10 @@ if st.session_state.results is not None:
             flat.append({
                 "metric":finding["metric"], "period":finding["period"],
                 "status":finding["status"],
+                "finding_id":finding["finding_id"],
                 "review_priority":finding["review_priority"],
                 "review_priority_label":finding["review_priority_label"],
+                "observed_spread":finding.get("observed_spread"),
                 "explanation":finding["explanation"],
                 "document":observation["document"], "value":observation.get("value"),
                 "unit":observation["unit"], "source_ref":observation.get("source_ref", "")
